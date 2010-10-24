@@ -35,7 +35,11 @@ AC_CHECK_LIB([dl], [dlopen])
 #AC_CHECK_LIB([pthread], [pthread_join])
 AC_SEARCH_LIBS([dlopen], [dl])
 
-AC_CHECK_LIB([fcgi], [FCGI_Accept])
+AC_CHECK_LIB([fcgi], [FCGI_Accept], [], [
+		     echo "Error! You need to have fcgi library installed."
+		     echo "Try sudo apt-get install libfcgi-dev"
+		     exit -1
+		     ])
 
 echo PKG_CONFIG_PATH=${PKG_CONFIG_PATH}
 
