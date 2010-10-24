@@ -1,11 +1,12 @@
-Add an entry like the following inside the server definition of your /etc/nginx/sites-enabled/default or similar file:
-
+Add an entry like the following outside of the server definition in your /etc/nginx/sites-enabled/default or similar file:
 
     upstream ajaxtime {
     server localhost:5700;
     # server localhost:5701;
     # server localhost:5702;
     }
+
+Then, still in the same file add the following inside the actual server definition:
 
 	location /ajaxtime/ajaxtime.json {
 
