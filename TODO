@@ -1,0 +1,9 @@
+Deal with a minimal form of long-polling, for example keeping a connection around for 200ms (at most)
+with three spawned servers will allow for about 15 concurrent requests in the worst case, but double or 
+triple that perhaps in an average case.
+
+Outside of that, instead of a separate project to do json/epoll <-> zmq subscription processing,
+can probably piggy back on the nginx_http_push_module work and include a POST submission to the /publish
+concept in this distribution, and modify the web pages to query /activity to get the long-poll result.
+
+You'd then be able to have longer 10 second, or even 20 or 30 second intervals of just hanging around.

@@ -1,0 +1,269 @@
+<HEAD>
+<TITLE>ajaxtime</TITLE>
+
+<script type="text/javascript" src="../js/jquery-1.4.2.min.js"></script>
+
+<script type="text/javascript" src="../js/jquery.ba-dotimeout.min.js"></script>
+
+<script type="text/javascript" src="./ajaxtime.js"></script>
+
+<!-- // http://benalman.com/projects/jquery-dotimeout-plugin/ -->
+
+<script type="text/javascript">
+
+<!--
+
+$(document).ready(function(){
+
+var former_white_time = '00:00', former_black_time = '00:00';
+
+var former_last_move = '';
+
+var json_failure_count = 0;
+
+var scheduled_update_count = 0;
+
+var upkeep_frames = 2 * (1000 / interval);
+
+var white_count = upkeep_frames, black_count = upkeep_frames;
+
+var refreshid;
+
+var elem = $('#polling_loop');
+
+function fillout_block(json) {
+
+   var iblock = document.getElementById("info_block");
+
+   var workspan, wcap, existingchild;
+
+
+function activate(id,target) {
+
+   wcap = document.createTextNode(target);
+
+   workspan = document.getElementById(id);
+
+   existingchild = workspan.firstChild;
+
+   workspan.replaceChild(wcap,existingchild);
+
+   }
+
+
+   if (json.w_time != former_white_time) {
+
+   activate("w", "W");
+
+   activate("w_time", json.w_time);
+
+   former_white_time = json.w_time;
+
+   white_count = upkeep_frames;
+
+   }
+
+   else {
+
+   if (white_count > 0) { white_count--; }
+
+   if (!white_count) activate("w", "w");
+
+   }
+
+
+   if (json.b_time != former_black_time) {
+
+   activate("b", "B");
+
+   activate("b_time", json.b_time);
+
+   former_black_time = json.b_time;
+
+   black_count = upkeep_frames;
+
+   }
+
+   else {
+
+   if (black_count > 0) { black_count--; }
+
+   if (!black_count) activate("b", "b");
+
+   }
+
+
+   if (former_last_move != json.last_move) {
+
+   activate("last_move", json.last_move);
+
+   former_last_move = json.last_move;
+
+   }
+
+}
+
+function update_time () {
+
+$.ajax({
+    url: 'ajaxtime.json'
+    ,type: 'POST'
+    ,data: ({ "id": 79232323, "cmd": 'POLL', "payload": "empty" })
+    ,dataType: 'json'
+    ,timeout: 1000
+    ,beforeSend: function (XMLHttpRequest) {
+
+     timeStart = grab_time();
+
+   elem.doTimeout('loop');
+
+    }  
+    ,error: function(){
+
+     error_timeEnd = grab_time();
+
+     timeAvg = (timeAvg + (error_timeEnd - timeStart)) / 2;
+
+     if (interval < max_interval) {
+       interval *= 2;
+		    json_failure_count++;
+       }
+       else {
+        alert('Error loading XML document ' + json_failure_count);
+       }
+
+		    elem.doTimeout('loop', true);
+
+    }
+    ,success: function(json){
+
+     success_timeEnd = grab_time();
+
+     timeAvg = (timeAvg + (success_timeEnd - timeStart)) / 2;
+
+        // do something with json
+
+		    if (interval > ideal_interval) {
+                      interval *= 0.5;
+                     }
+
+   fillout_block(json);
+
+   elem.doTimeout('loop', true);
+
+   }
+
+});
+
+}
+
+function activate_text(item, text) {
+
+   var wcap, workspan, existingchild;
+
+   wcap = document.createTextNode(text);
+
+   workspan = document.getElementById(item);
+
+   existingchild = workspan.firstChild;
+
+   workspan.replaceChild(wcap,existingchild);
+
+
+}
+
+function update_texts(i) {
+
+  activate_text("counter", i);
+
+  activate_text("failure_count", json_failure_count);
+
+  activate_text("timeAvg", timeAvg.toFixed(3) + ' ms');
+
+  activate_text("intervals", "interval: " + interval + " ideal_interval: " + ideal_interval);
+
+}
+
+elem.find('a.start').click(function(){
+
+   elem.doTimeout('loop', interval, function() {
+
+   scheduled_update_count++;
+
+   update_texts(scheduled_update_count);
+
+   update_time();
+
+   reoptimize_interval();
+
+   return true;
+
+   });
+
+});
+
+$("#force").click(function() {
+   
+   elem.doTimeout('loop', true);
+
+});
+
+$("#stop").click(function() {
+
+   elem.doTimeout('loop');
+
+   var empty_json = { "w_time": "00:00", "b_time": "00:00", "last_move": "last" };
+
+   fillout_block(empty_json);
+
+});
+
+elem.find('a.start').click();
+
+});
+
+//-->
+      
+</script>
+
+<STYLE TYPE="text/css" MEDIA="screen">
+        @import url("ajaxtime.css");
+</STYLE>
+
+</HEAD>
+
+<HTML>
+
+<font size=28 face="Courier New, monospace">
+<b>
+
+<p id="info_block">
+<span id="w">w</span>
+<span id="w_time">00:00</span>
+<span id="b">b</span>
+<span id="b_time">00:00</span>
+
+<span id="last_move">last</span>
+</p>
+
+</b>
+</font>
+
+<div id="polling_loop">
+
+  <a href="#" class="start">(Re)start</a>
+
+<button id="force">Force</button>
+<button id="stop">Stop</button>
+
+<p>Polling loop counter: <span id="counter">???</span></p>
+
+<p>json_failure counter: <span id="failure_count">???</span></p>
+
+<p>timeAvg (ping): <span id="timeAvg">???</span></p>
+
+<p>intervals: <span id="intervals">???</span></p>
+
+</div>
+
+</HTML>

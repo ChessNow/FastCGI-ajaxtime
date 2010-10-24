@@ -1,0 +1,71 @@
+establish a ZeroMQ subscription ring with zmq_forwarder and then have the included FastCGI-ajaxtime subscribe to the out portion of it, to receive all published moved events.
+
+There will actually just be one chess client from the chesstalk binary using the chesstalk-0mqpubsub module, publishing to it.
+
+accept FastCGI requests that are polling for the current move data and respond with it along with the clock and other status.
+
+clean transfers and no hiccups.
+
+--
+
+binaries:
+
+fastcgi-ajaxtime
+
+
+
+--
+
+sudo apt-get install libfcgi-dev
+
+--
+
+The instructions below are peppered with info on compiling a recent zeromq installation.
+
+--
+
+Prep work for fastcgi-ajaxtime:
+
+Install zeromq-2.0.10 or better manually someplace like /home/$USER/zeromq-2.0.10
+if you haven't already:
+
+sudo apt-get install uuid-dev
+tar xvfz zeromq-2.0.10.tar.gz
+cd zeromq-2.0.10
+mkdir zerosum
+cd zerosum
+../configure --prefix=$HOME/zeromq-2.0.10
+make install
+
+--
+
+Compiling and installation of fastcgi-ajaxtime, just three steps:
+
+# Run these commands from the fastcgi-ajaxtime directory with README and configure.ac
+
+libtoolize
+autoreconf --force --install
+
+--
+
+NOTE: The following instructions assume zeromq is installed in $HOME/zeromq-2.0.10
+as the --prefix when that library was configured and installed.
+
+--
+
+Before continuing, confirm that you can pkg-config your zeromq installation:
+
+PKG_CONFIG_PATH=$HOME/zeromq-2.0.10/lib/pkgconfig  pkg-config --libs libzmq
+
+should return a clean response with a -L directory path and ending in -lzmq
+
+--
+
+mkdir decimate
+cd decimate 
+
+export PKG_CONFIG_PATH=$HOME/zeromq-2.0.10/lib/pkgconfig 
+../configure --prefix=$HOME/fastcgi-ajaxtime
+make
+make install
+

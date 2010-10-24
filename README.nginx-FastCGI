@@ -1,0 +1,49 @@
+Add an entry like the following inside the server definition of your /etc/nginx/sites-enabled/default or similar file:
+
+
+    upstream ajaxtime {
+    server localhost:5700;
+    # server localhost:5701;
+    # server localhost:5702;
+    }
+
+	location /ajaxtime/ajaxtime.json {
+
+	# access_log off;
+	gzip off;
+	fastcgi_pass ajaxtime;
+	fastcgi_param REQUEST_METHOD $request_method;
+	fastcgi_param CONTENT_LENGTH $content_length;	
+
+	}
+
+Then run something like:
+
+     spawn-fcgi -n -p 5700 ./fastcgi-ajaxtime -- zmq_address zmq_port
+
+to start the FastCGI instance.
+
+Here, the zmq_address and zmq_port are the ip address and port associated with the
+
+out interface of the publication-subscription.xml file you started with zmq_forwarder.
+
+--
+
+If you connect to the above configured location (for example, http://localhost/ajaxtime/ajaxtime.json if your nginx server is available on localhost)
+
+then you should get a confirmation response like this:
+
+     "Sorry, GET requests are ignored."
+
+along with some additional status information.
+
+--
+
+You probably want to turn the access_log off (uncomment it) for this once everything 
+is working, and reload nginx, because when clients view ajaxtime.html it's going to 
+create a huge amount of traffic to the /ajaxtime/ajaxtime.json location.
+
+There is only one upstream connection listed in the sample above but you can spawn
+additional fastcgi-ajaxtime instances (for example 5701, 5702) or on different machines
+to have nginx multiplex the incoming requests.
+
