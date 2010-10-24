@@ -1,17 +1,14 @@
-establish a ZeroMQ subscription ring with zmq_forwarder and then have the included FastCGI-ajaxtime subscribe to the out portion of it, to receive all published moved events.
+establish a ZeroMQ subscription ring with zmq_forwarder (see chesstalk-0mqpubsub-module) then have the included FastCGI-ajaxtime subscribe to the out portion of it, to receive all published moved events.
 
 There will actually just be one chess client from the chesstalk binary using the chesstalk-0mqpubsub module, publishing to it.
 
 accept FastCGI requests that are polling for the current move data and respond with it along with the clock and other status.
-
-clean transfers and no hiccups.
 
 --
 
 binaries:
 
 fastcgi-ajaxtime
-
 
 
 --
@@ -68,4 +65,10 @@ export PKG_CONFIG_PATH=$HOME/zeromq-2.0.10/lib/pkgconfig
 ../configure --prefix=$HOME/fastcgi-ajaxtime
 make
 make install
+
+--
+
+See the README.nginx-FastCGI text for configuring nginx and spawning a FastCGI process.
+
+
 
