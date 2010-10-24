@@ -85,7 +85,7 @@ void *subscription_receiver(void *argument) {
 
   long int conversion;
   
-  printf("%s: Starting json writer thread.\n", __FUNCTION__);
+  printf("%s: Starting ZeroMQ subscriber thread to extract published moves.\n", __FUNCTION__);
 
   pthread_mutex_lock(&w.threadstate_lock);
   w.state |= THREAD_ACTIVE;
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
 
   char *server_name = argc>1 ? argv[1] : "*";
 
-  char *port_string = argc>2 ? argv[2] : "4002";
+  char *port_string = argc>2 ? argv[2] : "4921";
 
   int port;
 
@@ -352,25 +352,11 @@ int main(int argc, char *argv[]) {
 
 	  assert(x.id != NULL && x.cmd != NULL && x.payload !=NULL);
 
-	  /*
-	  if (x.id!=NULL && !strcmp(x.id, "-1")) {
-
-	    char *response;
-
-	    // possibly tabulate this new entrant in a separate server instance.
-
-	    // s_send(entrant, REMOTE_ADDR);
-
-	  }
-	  */
-
 	  {
 
 	    // look up response maintained by the subscription thread.
 
 	    int thread_busy = 1;
-
-	    if (0);
 
 	    while (thread_busy) {
 
@@ -387,12 +373,6 @@ int main(int argc, char *argv[]) {
 	    update_json(&w, tms.json, sizeof(tms.json));
 
 	    printf("%s\n", tms.json);
-
-	    if (log_fd!=-1) {
-	      char string[80];
-	      //	      sprintf(string, "%s: response=%s and c=%d\n", __FUNCTION__, response != NULL ? response : "NULL", response!=NULL ? response[0] : 'a');
-	      //      retval = write(log_fd, string, strlen(string));
-	    }
 
 	    pthread_mutex_unlock(&w.threadstate_lock);
 
