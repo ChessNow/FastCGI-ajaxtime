@@ -31,7 +31,7 @@ int init_work(struct work_items *i, struct timeval *game_start) {
   reset_dynamic_times(i, game_start);
 
   i->white_move = 1;
-  i->move_number = 1;
+  i->move_number = INACTIVE_GAME;
 
   return 0;
 

@@ -14,7 +14,8 @@ int reformulate_json(char *string, struct time_pack *w_time, struct time_pack *b
 int update_json(struct work_items *w, char *json, int json_len);
 
 int apply_increment(struct work_items *w, int white_move);
-int retract_expected_end(struct work_items *w, int white_move);
+int expected_end_boostdiff(struct work_items *w, int white_move);
+int expected_end_retractdiff(struct work_items *w, int white_move);
 
 void set_time_pack(struct time_pack *d, int seconds);
 void add_to_time_pack(struct time_pack *p, struct time_pack *addition);

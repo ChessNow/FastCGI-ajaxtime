@@ -221,9 +221,12 @@ void *subscription_receiver(void *extra) {
 
 	  apply_increment(w, white_move);
 
+	  // deal with the time occupied between recent and prior
+
 	  if (!white_move || move_number>1) {
 
-	    //	    retract_expected_end(w, white_move);
+	    expected_end_boostdiff(w, white_move);
+	    //extended_end_retractdiff(w, white_move);
 
 	  }
 
@@ -267,7 +270,7 @@ int main(int argc, char *argv[]) {
 
   int rc;
 
-  struct work_items w = { .state = 0, .white_move = 1, .move_number = 1, .tv_prior = NULL, .tv_recent = NULL };
+  struct work_items w = { .state = 0, .white_move = 1, .move_number = INACTIVE_GAME, .tv_prior = NULL, .tv_recent = NULL };
 
   int show_json(char *response) {
 

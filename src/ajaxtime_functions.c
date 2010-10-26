@@ -121,13 +121,7 @@ int compute_trim(struct time_pack *d, struct timeval *current, struct timeval *p
 
 int update_json(struct work_items *w, char *json, int json_len) {
 
-  struct time_pack *cleave_pointer;
-
-  struct time_pack trim_recent;
-
   struct timeval client_now;
-
-  struct timeval black_extent_time, white_extent_time;
 
   char string[80];
 
@@ -135,44 +129,30 @@ int update_json(struct work_items *w, char *json, int json_len) {
 
   int copy_len;
 
-  struct time_pack local_white = { .min = 0, .sec = 0 }, local_black = { .min = 0, .sec = 0 };
+  struct time_pack local_white, local_black;
   
-  struct timeval destructive_pryor;
-
   assert(json!=NULL && json_len>0);
 
   gettimeofday(&client_now, NULL);
 
-  cleave_pointer = w->white_move ? &local_black : &local_white;
-  
-  memcpy(&destructive_pryor, &w->game_start, sizeof(struct timeval));
-  timeval_subtract(&white_extent_time, w->white_move ? &client_now : &w->w_laststamp, &destructive_pryor);
-
-  memcpy(&destructive_pryor, &w->initial_black, sizeof(struct timeval));
-  timeval_subtract(&black_extent_time, !w->white_move ? &client_now : &w->b_laststamp, &destructive_pryor);
-
-  if (w->tv_recent == NULL) {
-    goto setup_json;
+  if (!w->move_number) {
+    memcpy(&local_white, &w->timeset.w_time, sizeof(struct time_pack));
+    memcpy(&local_black, &w->timeset.b_time, sizeof(struct time_pack));
   }
 
-  retval = compute_trim(&local_white, &w->expected_white_end, &w->w_laststamp);
-  if (retval==-1) {
-    printf("%s: Warning, compute_trim failed between the w_laststamp and expected_white_end.\n", __FUNCTION__);
+  if (w->move_number >= 1) {
+
+    retval = compute_trim(&local_white, &w->expected_white_end, w->white_move ? &w->w_laststamp : &client_now);
+    if (retval==-1) {
+      printf("%s: Warning, compute_trim failed between client_now or w_laststamp, and expected_white_end.\n", __FUNCTION__);
+    }
+
+    retval = compute_trim(&local_black, &w->expected_black_end, (!w->white_move || w->move_number>1) ? &w->b_laststamp : &client_now);
+    if (retval==-1) {
+      printf("%s: Warning, compute_trim failed between client_now or b_laststamp, and expected_black_end.\n", __FUNCTION__);
+    }
+
   }
-
-  retval = compute_trim(&local_black, &w->expected_black_end, (!w->white_move || w->move_number > 1) ? &w->b_laststamp : &w->game_start);
-  if (retval==-1) {
-    printf("%s: Warning, compute_trim failed between the b_laststamp and expected_black_end.\n", __FUNCTION__);
-  }
-
-  retval = compute_trim(&trim_recent, &client_now, w->tv_recent);
-  if (retval==-1) {
-    printf("%s: Warning, compute_trim failed for some reason from tv_recent to client_now.\n", __FUNCTION__);
-  }
-
-  apply_trim(&trim_recent, w->white_move ? &local_black : &local_white);
-
- setup_json:
 
   reformulate_json(string, &local_white, &local_black, w->move_number, w->move_string, w->white_move);
 
@@ -301,13 +281,28 @@ int apply_increment(struct work_items *w, int white_move) {
 
 }
 
-// called only after the first move has been played to account for time played.
-
-int retract_expected_end(struct work_items *w, int white_move) {
+int fill_idle_lastmove(struct timeval *idle, struct work_items *w) {
 
   struct timeval pryor;
 
-  struct timeval chop;
+  int retval;
+
+  memcpy(&pryor, w->tv_prior == NULL ? &w->game_start : w->tv_prior, sizeof(struct timeval));
+
+  retval = timeval_subtract(idle, w->tv_recent, &pryor);
+  if (retval==1) {
+    printf("%s: Expected an idle difference between a recent and prior (or game start) time, but got nothing.\n", __FUNCTION__);
+  }
+
+  return 0;
+
+}
+
+// called only after the first move has been played to account for time played.
+
+int expected_end_boostdiff(struct work_items *w, int white_move) {
+
+  struct timeval idle;
 
   int retval;
 
@@ -315,35 +310,66 @@ int retract_expected_end(struct work_items *w, int white_move) {
 
   assert(w->tv_recent != NULL);
 
-  memcpy(&pryor, w->tv_prior == NULL ? &w->game_start : w->tv_prior, sizeof(struct timeval));
-
-  retval = timeval_subtract(&chop, w->tv_recent, &pryor);
+  retval = fill_idle_lastmove(&idle, w);
   if (retval==-1) {
-    printf("%s: Expected a chop difference between a recent and prior (or game start) time, but got nothing.\n", __FUNCTION__);
+    printf("%s: Trouble getting elapsed time of last move.\n", __FUNCTION__);
+    idle.tv_sec = 0;
+    idle.tv_usec = 0;
   }
 
-  // chop away some elapsed time.
+  // extend the current side based on how long the opposite play (last move) took.
+
+  {
+    
+    struct timeval *operation = white_move ?  &w->expected_black_end : &w->expected_white_end;
+
+    operation->tv_sec += idle.tv_sec;
+    operation->tv_usec += idle.tv_usec;
+
+    while (operation->tv_usec > 1000000) {
+      operation->tv_usec -= 1000000;
+      operation->tv_sec += 1;
+    }
+    
+  }
+
+  return 0;
+
+}
+
+// called only after the first move has been played to account for time played.
+
+int expected_end_retractdiff(struct work_items *w, int white_move) {
+
+  struct timeval idle;
+
+  int retval;
+
+  assert(w!=NULL);
+
+  assert(w->tv_recent != NULL);
+
+  retval = fill_idle_lastmove(&idle, w);
+  if (retval==-1) {
+    printf("%s: Trouble getting elapsed time of last move.\n", __FUNCTION__);
+    idle.tv_sec = 0;
+    idle.tv_usec = 0;
+  }
+
+  // retract the current side based on how long the opposite play took.
 
   {
     
     struct timeval *operation = white_move ? &w->expected_black_end : &w->expected_white_end;
 
-    operation->tv_sec -= chop.tv_sec;
+    operation->tv_sec += idle.tv_sec;
+    operation->tv_usec += idle.tv_usec;
 
-    if (operation->tv_usec >= chop.tv_usec) {
-      operation->tv_usec -= chop.tv_usec;
+    while (operation->tv_usec > 1000000) {
+      operation->tv_usec -= 1000000;
+      operation->tv_sec += 1;
     }
-    else {
-      
-      operation->tv_usec += chop.tv_usec;
-
-      while (operation->tv_usec > 1000000) {
-	operation->tv_usec -= 1000000;
-	operation->tv_sec += 1;
-      }
     
-    }
-
   }
 
   return 0;

@@ -15,6 +15,8 @@ struct fixed_time {
 
 };
 
+#define INACTIVE_GAME 0
+
 struct work_items {
 
   struct fixed_time timeset;
