@@ -413,6 +413,8 @@ int main(int argc, char *argv[]) {
 
 	struct id_cmd_payload x;
 
+	int game_over;
+
 	// buffer looks like id=98723432&cmd=POLL&payload=empty
 
 	read_retval = fread(buffer, 1, sizeof(buffer), stdin);
@@ -467,7 +469,15 @@ int main(int argc, char *argv[]) {
 
 	    pthread_mutex_lock(&w.threadstate_lock);
 
-	    update_json(&w, tms.json, sizeof(tms.json));
+	    game_over = -1;
+
+	    update_json(&w, tms.json, sizeof(tms.json), &game_over);
+
+	    if (game_over == 1 || game_over == 0) {
+
+	      // 
+
+	    }
 
 	    printf("%s\n", tms.json);
 

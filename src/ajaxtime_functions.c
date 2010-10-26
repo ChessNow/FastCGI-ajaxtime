@@ -119,13 +119,13 @@ int compute_trim(struct time_pack *d, struct timeval *current, struct timeval *p
 
 }
 
-int update_json(struct work_items *w, char *json, int json_len) {
+int update_json(struct work_items *w, char *json, int json_len, int *game_over) {
 
   struct timeval client_now;
 
   char string[80];
 
-  int retval;
+  int retval, black_retval, white_retval;
 
   int copy_len;
 
@@ -142,14 +142,18 @@ int update_json(struct work_items *w, char *json, int json_len) {
 
   if (w->move_number >= 1) {
 
-    retval = compute_trim(&local_white, &w->expected_white_end, w->white_move ? &w->w_laststamp : &client_now);
-    if (retval==-1) {
-      printf("%s: Warning, compute_trim failed between client_now or w_laststamp, and expected_white_end.\n", __FUNCTION__);
-    }
+    white_retval = compute_trim(&local_white, &w->expected_white_end, w->white_move ? &w->w_laststamp : &client_now);
 
-    retval = compute_trim(&local_black, &w->expected_black_end, (!w->white_move || w->move_number>1) ? &w->b_laststamp : &client_now);
-    if (retval==-1) {
-      printf("%s: Warning, compute_trim failed between client_now or b_laststamp, and expected_black_end.\n", __FUNCTION__);
+    black_retval = compute_trim(&local_black, &w->expected_black_end, (!w->white_move || w->move_number>1) ? &w->b_laststamp : &client_now);
+
+    if (white_retval==-1 || black_retval==-1) {
+
+      // game over condition
+
+      if (game_over!=NULL) {
+	*game_over = !white_retval;
+      }
+
     }
 
   }
