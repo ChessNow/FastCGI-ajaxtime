@@ -44,7 +44,48 @@ struct thread_main_share tms;
 unsigned int fclose_stderr_failures;
 unsigned int fclose_stdout_failures;
 
+void show_timeval(char *description, struct timeval *t) {
+
+  assert(description!=NULL);
+
+  if (t != NULL)
+    printf("%s %lu sec %lu usec\n", description, t->tv_sec, t->tv_usec);
+    else printf("%s NULL\n", description);
+
+}
+
+int dump_workitems(struct work_items *w) {
+
+  struct fixed_time *f;
+
+  assert(w!=NULL);
+
+  f = &w->timeset;
+
+  printf("<PRE>");
+
+  printf("%s: timeset white_increment=%d black_increment=%d\n", __FUNCTION__, f->white_increment, f->black_increment);
+  printf("%s: timeset white %d:%2d and black %d:%2d\n", __FUNCTION__
+	 , f->w_time.min, f->w_time.sec, f->b_time.min, f->b_time.sec);
+
+  show_timeval("game_start", &w->game_start);
+  show_timeval("initial_black", &w->initial_black);
+  show_timeval("w_laststamp", &w->w_laststamp);
+  show_timeval("b_laststamp", &w->b_laststamp);
+  show_timeval("tv_prior", w->tv_prior);
+  show_timeval("tv_recent", w->tv_recent);
+  show_timeval("expected_white_end", &w->expected_white_end);
+  show_timeval("expected_black_end", &w->expected_black_end);
+
+  printf("</PRE>\n");
+
+  return 0;
+
+}
+
 int show_status(struct work_items *w) {
+
+  assert(w!=NULL);
 
   printf("Content-type: text/html\r\n\r\n");
 
@@ -66,6 +107,8 @@ int show_status(struct work_items *w) {
 
   printf("<p>fclose_stdout_failures=%lu</p>\n", fclose_stdout_failures);
 
+  dump_workitems(w);
+
   return 0;
 
 }
@@ -73,6 +116,15 @@ int show_status(struct work_items *w) {
 void *context;
 
 void *sub_socket;
+
+void expected_end_boost(struct work_items *w, struct fixed_time *f) {
+
+  assert(w!=NULL && f!=NULL);
+
+  w->expected_white_end.tv_sec += f->w_time.min * 60 + f->w_time.sec;
+  w->expected_black_end.tv_sec += f->b_time.min * 60 + f->b_time.sec;
+
+}
 
 // expecting moves of the form: 1. e4
 // 1... e5
@@ -142,25 +194,36 @@ void *subscription_receiver(void *extra) {
 
 	    init_work(w, &receive_stamp);
 
+	    assert(w->tv_recent == &w->b_laststamp);
+
+	    expected_end_boost(w, &w->timeset);
+
 	  }
 
 	  memcpy(w->move_string, p, max_len);
 	  w->move_string[max_len] = 0;
 
-	  // update increments.
-
-	  apply_increments(w, &receive_stamp, white_move);
-
 	  // update recent and last time stamps.
 
-	  w->tv_prior = w->white_move ? &w->b_laststamp : &w->w_laststamp;
-	  w->tv_recent = w->white_move ? &w->w_laststamp : &w->b_laststamp;
+	  if (w->tv_recent == &w->b_laststamp) {
+	    w->tv_recent = &w->w_laststamp;
+	    w->tv_prior = &w->b_laststamp;
+	  }
+	  
+	  else {
+	    w->tv_recent = &w->b_laststamp;
+	    w->tv_prior = &w->w_laststamp;
+	  }
 
 	  memcpy(w->tv_recent, &receive_stamp, sizeof(struct timeval));
 
+	  // extend game time on player side that just moved.
+
+	  apply_increment(w, white_move);
+
 	  if (!white_move || move_number>1) {
 
-	    dampen_artificials(w, white_move);
+	    //	    retract_expected_end(w, white_move);
 
 	  }
 

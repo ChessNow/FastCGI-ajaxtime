@@ -123,7 +123,7 @@ int update_json(struct work_items *w, char *json, int json_len) {
 
   struct time_pack *cleave_pointer;
 
-  struct time_pack trim_recent, trim_bulk_white, trim_bulk_black;
+  struct time_pack trim_recent;
 
   struct timeval client_now;
 
@@ -135,7 +135,7 @@ int update_json(struct work_items *w, char *json, int json_len) {
 
   int copy_len;
 
-  struct time_pack local_white, local_black;
+  struct time_pack local_white = { .min = 0, .sec = 0 }, local_black = { .min = 0, .sec = 0 };
   
   struct timeval destructive_pryor;
 
@@ -144,7 +144,6 @@ int update_json(struct work_items *w, char *json, int json_len) {
   gettimeofday(&client_now, NULL);
 
   cleave_pointer = w->white_move ? &local_black : &local_white;
-
   
   memcpy(&destructive_pryor, &w->game_start, sizeof(struct timeval));
   timeval_subtract(&white_extent_time, w->white_move ? &client_now : &w->w_laststamp, &destructive_pryor);
@@ -152,11 +151,18 @@ int update_json(struct work_items *w, char *json, int json_len) {
   memcpy(&destructive_pryor, &w->initial_black, sizeof(struct timeval));
   timeval_subtract(&black_extent_time, !w->white_move ? &client_now : &w->b_laststamp, &destructive_pryor);
 
-  memcpy(&local_white, &w->timeset.w_time, sizeof(struct time_pack));
-  memcpy(&local_black, &w->timeset.b_time, sizeof(struct time_pack));
-
   if (w->tv_recent == NULL) {
     goto setup_json;
+  }
+
+  retval = compute_trim(&local_white, &w->expected_white_end, &w->w_laststamp);
+  if (retval==-1) {
+    printf("%s: Warning, compute_trim failed between the w_laststamp and expected_white_end.\n", __FUNCTION__);
+  }
+
+  retval = compute_trim(&local_black, &w->expected_black_end, (!w->white_move || w->move_number > 1) ? &w->b_laststamp : &w->game_start);
+  if (retval==-1) {
+    printf("%s: Warning, compute_trim failed between the b_laststamp and expected_black_end.\n", __FUNCTION__);
   }
 
   retval = compute_trim(&trim_recent, &client_now, w->tv_recent);
@@ -165,28 +171,6 @@ int update_json(struct work_items *w, char *json, int json_len) {
   }
 
   apply_trim(&trim_recent, w->white_move ? &local_black : &local_white);
-
-  if (!w->white_move || w->move_number > 1) {
-
-    retval = compute_trim(&trim_bulk_black, &w->b_laststamp, &w->artificial_black);
-    if (retval==-1) {
-      printf("%s: Warning, compute_trim failed for some reason from artificial_black to b_laststamp.\n", __FUNCTION__);
-    }
-
-  }
-
-  else {
-    trim_bulk_black.min = 0;
-    trim_bulk_black.sec = 0;
-  }
-
-  retval = compute_trim(&trim_bulk_white, &w->w_laststamp, &w->artificial_start);
-  if (retval==-1) {
-    printf("%s: Warning, compute_trim failed for some reason from initial_black to tv_recent or tv_prior.\n", __FUNCTION__);
-  }
-
-  apply_trim(&trim_bulk_black, &local_black);
-  apply_trim(&trim_bulk_white, &local_white);
 
  setup_json:
 
@@ -287,7 +271,7 @@ int advance_time_pack(struct time_pack *p, int seconds) {
 
 }
 
-int apply_increments(struct work_items *w, struct timeval *now, int white_move) {
+int apply_increment(struct work_items *w, int white_move) {
 
   struct fixed_time *f;
 
@@ -295,14 +279,22 @@ int apply_increments(struct work_items *w, struct timeval *now, int white_move) 
 
   f = &w->timeset;
 
-  if (white_move && f->white_increment>0) {
-    w->artificial_start.tv_sec -= f->white_increment;
-  }
+  assert(white_move==0 || white_move==1);
 
-  else 
+  switch(white_move) {
 
-  if (!white_move && f->black_increment>0) {
-    w->artificial_black.tv_sec -= f->black_increment;
+  case 0:
+    if (f->black_increment>0) {
+      w->expected_black_end.tv_sec += f->black_increment;
+    }
+    break;
+
+  case 1: 
+    if (f->white_increment>0) {
+      w->expected_white_end.tv_sec += f->white_increment;
+    }
+    break;
+
   }
 
   return 0;
@@ -311,7 +303,7 @@ int apply_increments(struct work_items *w, struct timeval *now, int white_move) 
 
 // called only after the first move has been played to account for time played.
 
-int dampen_artificials(struct work_items *w, int white_move) {
+int retract_expected_end(struct work_items *w, int white_move) {
 
   struct timeval pryor;
 
@@ -330,21 +322,28 @@ int dampen_artificials(struct work_items *w, int white_move) {
     printf("%s: Expected a chop difference between a recent and prior (or game start) time, but got nothing.\n", __FUNCTION__);
   }
 
-  // whether the artificial reference point had an increment applied to it or not, chop away
-  // the elapsed time
+  // chop away some elapsed time.
 
   {
     
-    struct timeval *operation = white_move ? &w->artificial_black : &w->artificial_start;
+    struct timeval *operation = white_move ? &w->expected_black_end : &w->expected_white_end;
 
-    operation->tv_sec += chop.tv_sec;
-    operation->tv_usec += chop.tv_usec;
+    operation->tv_sec -= chop.tv_sec;
 
-    while (operation->tv_usec >= 1000000) {
-      operation->tv_usec -= 1000000;
-      operation->tv_sec += 1;
+    if (operation->tv_usec >= chop.tv_usec) {
+      operation->tv_usec -= chop.tv_usec;
     }
+    else {
+      
+      operation->tv_usec += chop.tv_usec;
+
+      while (operation->tv_usec > 1000000) {
+	operation->tv_usec -= 1000000;
+	operation->tv_sec += 1;
+      }
     
+    }
+
   }
 
   return 0;

@@ -19,13 +19,13 @@ struct work_items {
 
   struct fixed_time timeset;
 
-  struct timeval artificial_start, artificial_black;
-
   struct timeval game_start, initial_black;
 
   struct timeval w_laststamp, b_laststamp;
 
   struct timeval *tv_prior, *tv_recent;
+
+  struct timeval expected_white_end, expected_black_end;
 
   int white_move;
   unsigned int move_number;
