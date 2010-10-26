@@ -38,41 +38,6 @@
        return x->tv_sec < y->tv_sec;
      }
 
-int apply_trim(struct time_pack *trim_amount, struct time_pack *cleave_pointer) {
-
-  assert(cleave_pointer!=NULL);
-
-  assert(trim_amount!=NULL);
-
-  cleave_pointer->min -= trim_amount->min;
-  cleave_pointer->sec -= trim_amount->sec;
-
-  if (cleave_pointer->sec < 0) {
-    cleave_pointer->sec += 60;
-    cleave_pointer->min -= 1;
-  }
-
-  if (cleave_pointer->min < 0 || cleave_pointer->sec < 0) {
-    cleave_pointer->min = 0;
-    cleave_pointer->sec = 0;
-  }
-
-  return 0;
-
-}
-
-int second_compute_trim(time_t start, time_t current, struct time_pack *trim_amount) {
-
-  assert(trim_amount!=NULL);
-
-  trim_amount->min = current - start > 0 ? (current - start) / 60 : 0;
-
-  trim_amount->sec = (current - start) - trim_amount->min * 60;
-
-  return 0;
-
-}
-
 int reformulate_json(char *string, struct time_pack *w_time, struct time_pack *b_time, int move_number, char *move_string, int white_move) {
 
   assert(string!=NULL && move_string!=NULL);
@@ -125,7 +90,7 @@ int update_json(struct work_items *w, char *json, int json_len, int *game_over) 
 
   char string[80];
 
-  int retval, black_retval, white_retval;
+  int black_retval, white_retval;
 
   int copy_len;
 
@@ -144,7 +109,7 @@ int update_json(struct work_items *w, char *json, int json_len, int *game_over) 
 
     white_retval = compute_trim(&local_white, &w->expected_white_end, w->white_move ? &w->w_laststamp : &client_now);
 
-    black_retval = compute_trim(&local_black, &w->expected_black_end, (!w->white_move || w->move_number>1) ? &w->b_laststamp : &client_now);
+    black_retval = compute_trim(&local_black, &w->expected_black_end, !w->white_move ? &w->b_laststamp : &client_now);
 
     if (white_retval==-1 || black_retval==-1) {
 
@@ -210,46 +175,6 @@ int fill_from_environment(struct fixed_time *f) {
 
   f->white_increment = white_increment_seconds != NULL ? strtol(white_increment_seconds, NULL, 10) : default_white_increment_seconds;
   f->black_increment = black_increment_seconds != NULL ? strtol(black_increment_seconds, NULL, 10) : default_black_increment_seconds;
-
-  return 0;
-
-}
-
-void add_to_time_pack(struct time_pack *p, struct time_pack *addition) {
-
-  assert(p!=NULL && addition!=NULL);
-
-  p->min += addition->min;
-  p->sec += addition->sec;
-
-  while (p->sec >= 60) {
-
-    p->min++;
-    p->sec -= 60;
-
-  }
-
-}
-
-void set_time_pack(struct time_pack *d, int seconds) {
-
-  assert(d!=NULL);
-
-  d->min = seconds > 0 ? (seconds / 60) : 0;
-
-  d->sec = seconds - d->min * 60;
-
-}
-
-int advance_time_pack(struct time_pack *p, int seconds) {
-
-  struct time_pack local;
-
-  assert(p!=NULL);
-
-  set_time_pack(&local, seconds);
-
-  add_to_time_pack(p, &local);
 
   return 0;
 
@@ -326,45 +251,6 @@ int expected_end_boostdiff(struct work_items *w, int white_move) {
   {
     
     struct timeval *operation = white_move ?  &w->expected_black_end : &w->expected_white_end;
-
-    operation->tv_sec += idle.tv_sec;
-    operation->tv_usec += idle.tv_usec;
-
-    while (operation->tv_usec > 1000000) {
-      operation->tv_usec -= 1000000;
-      operation->tv_sec += 1;
-    }
-    
-  }
-
-  return 0;
-
-}
-
-// called only after the first move has been played to account for time played.
-
-int expected_end_retractdiff(struct work_items *w, int white_move) {
-
-  struct timeval idle;
-
-  int retval;
-
-  assert(w!=NULL);
-
-  assert(w->tv_recent != NULL);
-
-  retval = fill_idle_lastmove(&idle, w);
-  if (retval==-1) {
-    printf("%s: Trouble getting elapsed time of last move.\n", __FUNCTION__);
-    idle.tv_sec = 0;
-    idle.tv_usec = 0;
-  }
-
-  // retract the current side based on how long the opposite play took.
-
-  {
-    
-    struct timeval *operation = white_move ? &w->expected_black_end : &w->expected_white_end;
 
     operation->tv_sec += idle.tv_sec;
     operation->tv_usec += idle.tv_usec;

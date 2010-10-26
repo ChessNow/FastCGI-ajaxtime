@@ -226,7 +226,6 @@ void *subscription_receiver(void *extra) {
 	  if (!white_move || move_number>1) {
 
 	    expected_end_boostdiff(w, white_move);
-	    //extended_end_retractdiff(w, white_move);
 
 	  }
 
