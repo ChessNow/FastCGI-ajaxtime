@@ -33,8 +33,6 @@ extern char **environ;
 
 #include "ajaxtime_functions.h"
 
-struct work_items w = { .state = 0, .move_number = 1, .white_move = 1 };
-
 struct thread_main_share {
 
   char json[80];
@@ -46,27 +44,29 @@ struct thread_main_share tms;
 unsigned int fclose_stderr_failures;
 unsigned int fclose_stdout_failures;
 
-int show_status() {
+int show_status(struct work_items *w) {
 
-    printf("Content-type: text/html\r\n\r\n");
+  printf("Content-type: text/html\r\n\r\n");
 
-    printf("Sorry, GET requests are ignored.\n");
+  printf("Sorry, GET requests are ignored.\n");
 
-    printf("<p>%s %s %s</p>\n"
-	   , w.state&THREAD_STARTED?"THREAD_STARTED":""
-	   , w.state&THREAD_ACTIVE?"THREAD_ACTIVE":""
-	   , w.state&SUBSCRIPTION_RECEIVE?"SUBSCRIPTION_RECEIVE":""
-	   );
+  printf("<p>%s %s %s</p>\n"
+	 , w->state&THREAD_STARTED?"THREAD_STARTED":""
+	 , w->state&THREAD_ACTIVE?"THREAD_ACTIVE":""
+	 , w->state&SUBSCRIPTION_RECEIVE?"SUBSCRIPTION_RECEIVE":""
+	 );
 
-    printf("<p>move_number=%d white_move=%d</p>\n", w.move_number, w.white_move);
+  printf("<p>move_number=%d white_move=%d</p>\n", w->move_number, w->white_move);
 
-    printf("<p>move_string=%s</p>\n", w.move_string);
+  printf("<p>move_string=%s</p>\n", w->move_string);
 
-    printf("<p>json=%s</p>\n", tms.json);
+  printf("<p>json=%s</p>\n", tms.json);
 
-    printf("<p>fclose_stderr_failures=%lu</p>\n", fclose_stderr_failures);
+  printf("<p>fclose_stderr_failures=%lu</p>\n", fclose_stderr_failures);
 
-    printf("<p>fclose_stdout_failures=%lu</p>\n", fclose_stdout_failures);
+  printf("<p>fclose_stdout_failures=%lu</p>\n", fclose_stdout_failures);
+
+  return 0;
 
 }
 
@@ -77,46 +77,50 @@ void *sub_socket;
 // expecting moves of the form: 1. e4
 // 1... e5
 
-void *subscription_receiver(void *argument) {
-
-  void *result = NULL;
-
-  int debug = 0;
+void *subscription_receiver(void *extra) {
 
   long int conversion;
   
+  int move_number, white_move;
+
+  struct work_items *w = (struct work_items*) extra;
+
   printf("%s: Starting ZeroMQ subscriber thread to extract published moves.\n", __FUNCTION__);
 
-  pthread_mutex_lock(&w.threadstate_lock);
-  w.state |= THREAD_ACTIVE;
-  pthread_mutex_unlock(&w.threadstate_lock);
+  pthread_mutex_lock(&w->threadstate_lock);
+  w->state |= THREAD_ACTIVE;
+  pthread_mutex_unlock(&w->threadstate_lock);
 
   for ( ;; ) {
 
     char *message;
 
-    pthread_mutex_lock(&w.threadstate_lock);
-    w.state &= ~(w.state&SUBSCRIPTION_RECEIVE);
-    pthread_mutex_unlock(&w.threadstate_lock);
+    struct timeval receive_stamp;
+
+    pthread_mutex_lock(&w->threadstate_lock);
+    w->state &= ~(w->state&SUBSCRIPTION_RECEIVE);
+    pthread_mutex_unlock(&w->threadstate_lock);
   
     message = s_recv(sub_socket);
+
+    gettimeofday(&receive_stamp, NULL);
 
     //    message = "4... Bxc3";
 
     if (message!=NULL) {
 
-      pthread_mutex_lock(&w.threadstate_lock);
+      pthread_mutex_lock(&w->threadstate_lock);
 
-      w.state |= SUBSCRIPTION_RECEIVE;
+      w->state |= SUBSCRIPTION_RECEIVE;
 
       conversion = strtol(message, NULL, 10);
       if (conversion >= 1 && conversion < LONG_MAX && errno!=ERANGE) {
 
 	char *p;
 
-	w.move_number = conversion;
+	move_number = conversion;
 
-	w.white_move = (NULL==strstr(message, "..."));
+	white_move = (NULL==strstr(message, "..."));
 
 	p = message;
 	
@@ -130,18 +134,45 @@ void *subscription_receiver(void *argument) {
 
 	  max_len = strlen(p);
 	    
-	  if (max_len+1 > sizeof(w.move_string)) {
-	    max_len = sizeof(w.move_string) - 1;
+	  if (max_len+1 > sizeof(w->move_string)) {
+	    max_len = sizeof(w->move_string) - 1;
 	  }
 
-	  memcpy(w.move_string, p, max_len);
-	  w.move_string[max_len] = 0;
+	  if (move_number == 1 && white_move) {
+
+	    init_work(w, &receive_stamp);
+
+	  }
+
+	  memcpy(w->move_string, p, max_len);
+	  w->move_string[max_len] = 0;
+
+	  // update increments.
+
+	  apply_increments(w, &receive_stamp, white_move);
+
+	  // update recent and last time stamps.
+
+	  w->tv_prior = w->white_move ? &w->b_laststamp : &w->w_laststamp;
+	  w->tv_recent = w->white_move ? &w->w_laststamp : &w->b_laststamp;
+
+	  memcpy(w->tv_recent, &receive_stamp, sizeof(struct timeval));
+
+	  if (!white_move || move_number>1) {
+
+	    dampen_artificials(w, white_move);
+
+	  }
+
+	  w->move_number = move_number;
+	  
+	  w->white_move = white_move;
 
 	}
 	
       }
 
-      pthread_mutex_unlock(&w.threadstate_lock);
+      pthread_mutex_unlock(&w->threadstate_lock);
 
     }
 
@@ -153,15 +184,13 @@ int main(int argc, char *argv[]) {
 
   char buffer[4096];
 
-  int read_retval;
-
   int identifier;
+
+  int read_retval;
 
   char hostname[64];
 
   int retval;
-
-  unsigned char zmq_identifier[17];
 
   int log_enabled = getenv("FASTCGI_LOGGING") != NULL;
 
@@ -174,6 +203,8 @@ int main(int argc, char *argv[]) {
   int port;
 
   int rc;
+
+  struct work_items w = { .state = 0, .white_move = 1, .move_number = 1, .tv_prior = NULL, .tv_recent = NULL };
 
   int show_json(char *response) {
 
@@ -209,7 +240,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  retval = fill_from_environment(&w);
+  retval = fill_from_environment(&w.timeset);
 
   if (retval==-1) {
     fprintf(stderr, "%s: Trouble with ajaxtime fill_from_environment function.\n", __FUNCTION__);
@@ -262,7 +293,7 @@ int main(int argc, char *argv[]) {
 
   pthread_mutex_init(&w.threadstate_lock, NULL);
 
-  rc = pthread_create(&w.subscription_thread_reader, NULL, &subscription_receiver, NULL);
+  rc = pthread_create(&w.subscription_thread_reader, NULL, &subscription_receiver, (void*) &w);
 
   if (rc != 0) {
     printf("%s: Trouble creating subscription_thread_reader.\n", __FUNCTION__);
@@ -282,7 +313,7 @@ int main(int argc, char *argv[]) {
 
     if (requestMethod != NULL && !strncmp(requestMethod, "GET", 3)) {
 
-      show_status();
+      show_status(&w);
 
       continue;
 
@@ -380,19 +411,19 @@ int main(int argc, char *argv[]) {
 
 	}
 
+	else {
+
+	  // problem.
+
+	  error_out("fread", read_retval);
+
+	  continue;
+
+	}
+
       }
 
     }
-
-      else {
-
-	// problem.
-
-	error_out("fread", read_retval);
-
-	continue;
-
-      }
 
     retval = fclose(stderr);
     if (retval!=0) {

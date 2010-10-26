@@ -7,4 +7,6 @@ struct id_cmd_payload {
 
 };
 
+int parse_icp(char *buffer, struct id_cmd_payload *x);
+
 #endif

@@ -20,6 +20,7 @@ Then, still in the same file add the following inside the actual server definiti
 
 Then run something like:
 
+     WHITE_TIME=8 BLACK_TIME=8 WHITE_INCREMENT=10 BLACK_INCREMENT=10 \
      spawn-fcgi -n -p 5700 ./fastcgi-ajaxtime -- zmq_address zmq_port
 
 to start the FastCGI instance.

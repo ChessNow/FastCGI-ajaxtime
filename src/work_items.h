@@ -7,18 +7,25 @@
 
 #include <pthread.h>
 
-struct work_items {
-
-  char *json_file;
-  int fd;
-
-  struct time_pack w_time, b_time;
+struct fixed_time {
 
   int white_increment, black_increment;
 
-  struct timeval game_start;
+  struct time_pack w_time, b_time;
 
-  struct timeval tv_prior, tv_recent;
+};
+
+struct work_items {
+
+  struct fixed_time timeset;
+
+  struct timeval artificial_start, artificial_black;
+
+  struct timeval game_start, initial_black;
+
+  struct timeval w_laststamp, b_laststamp;
+
+  struct timeval *tv_prior, *tv_recent;
 
   int white_move;
   unsigned int move_number;
@@ -32,6 +39,6 @@ struct work_items {
 
 };
 
-extern struct work_items w;
+int init_work(struct work_items *i, struct timeval *game_start);
 
 #endif
