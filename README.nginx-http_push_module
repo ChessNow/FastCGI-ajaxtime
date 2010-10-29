@@ -1,0 +1,64 @@
+
+You can also use the nginx_http_push_module from github. The benefit here is that connections will just idle along for a bit and just respond with a new move,
+
+instead of having the client commit to a more stressfull interval polling regime. This is known as long poll.
+
+wget http://www.nginx.org/download/nginx-0.8.53.tar.gz
+tar xvfz nginx-0.8.53.tar.gz
+cd nginx-0.8.53
+./configure --prefix=$HOME/nginx-0.8.53 --add-module ~/src/version-control/git/nginx_http_push_module
+make install
+
+
+At this point you may have to edit /etc/default/nginx to add a DAEMON_OPTS="-c /etc/nginx/nginx.conf"
+
+and edit the /etc/init.d/nginx to change DAEMON=/usr/sbin/nginx to your installed daemon path (new version) in your home directory.
+
+You might also have to look over the /etc/init.d/nginx script to make sure it runs its config test with $DAEMON instead of nginx,
+
+which would just use your older globally installed system binary, and thus barf on the push statements due to lacking the http_push_module.
+
+Finally, symlink your $HOME/nginx-0.8.53/logs to point to your global /var/log/nginx area, if you have one.
+
+(cd $HOME/nginx-0.8.53 ; mv logs logs.previous ; ln -s /var/log/nginx logs)
+--
+
+Here are relevant lines to add to your nginx configuration, such as your default site:
+
+	location /ajaxtime/activity {
+
+	  push_subscriber;
+
+	  push_subscriber_concurrency broadcast;
+          set $push_channel_id $arg_channel; #/?channel=239aff3 or some-such
+          default_type  application/json;
+
+	}
+
+	location /ajaxtime/publish {
+
+	   set $push_channel_id $arg_channel; #/?channel=239aff3 or some-such
+	   push_publisher;
+
+	   push_message_timeout 1h;           # expire buffered messages after 1 hour
+	   push_max_message_buffer_length 100; # store absolutely at most 100 messages
+
+	}
+
+And in your main nginx.conf under the higher up http branch, set:
+
+  push_max-reserved_memory 50M;
+  push_authorized_channels_only off;
+
+Finally, the ajaxtime.html needs to be tweaked to use the activity hook, instead of the prior FastCGI exclusive scheme.
+
+--
+
+Unfortunately, you need one more piece. It's invoking the fastcgi-ajaxtime binary as usual (with spawn-fcgi) but 
+
+with the http_push_module argument following the zmq_address and zmq_port. The reason for this is to replace its
+
+subscription thread with one which will send POST messages to the (hopefully private) /publish URL. At that point
+
+the rest of the network can use the more efficient means of getting moves through /activity.
+
