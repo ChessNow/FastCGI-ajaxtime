@@ -20,20 +20,19 @@
 
 */
 
-#ifndef AJAXTIME_FUNCTIONS_H
-#define AJAXTIME_FUNCTIONS_H
+#ifndef HTTP_PUSH_SUPPORT_H
+#define HTTP_PUSH_SUPPORT_H
 
-#include "work_items.h"
+struct push_pack {
 
-#include "time_pack.h"
+  char *url;
 
-int fill_from_environment(struct fixed_time *f);
+  char *id_name;
 
-int reformulate_json(char *string, struct time_pack *w_time, struct time_pack *b_time, int move_number, char *move_string, int white_move);
+};
 
-int update_json(struct work_items *w, char *json, int json_len, int *game_over);
+int push_submission(struct push_pack *p, char *server_name, char *port, char *identifier, int move_number, char *json_string);
 
-int apply_increment(struct work_items *w, int white_move);
-int expected_end_boostdiff(struct work_items *w, int white_move);
+int prep_push(struct push_pack *p, char *publish_url, char *id_name);
 
 #endif
