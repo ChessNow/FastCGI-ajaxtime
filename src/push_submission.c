@@ -27,6 +27,8 @@
 
 #include "http_push_support.h"
 
+#include "extract_url.h"
+
 int main(int argc, char *argv[]) {
 
   struct push_pack pc;
@@ -41,7 +43,9 @@ int main(int argc, char *argv[]) {
 
   char *server_name;
 
-  char *port;
+  char port[6];
+
+  unsigned short port_numeric;
 
   retval = prep_push(&pc, publish_url, id_name);
 
@@ -55,9 +59,21 @@ int main(int argc, char *argv[]) {
 
   // extract server_name and port from publish_url
 
-  server_name = "localhost";
+  retval = extract_url(&server_name, &port_numeric, publish_url, YES_MALLOC);
 
-  port = "80";
+  if (retval==-1) {
+
+    fprintf(stderr, "%s: Trouble extracting server_name and/or port with extract_url on url=%s.\n", __FUNCTION__, publish_url);
+
+    return -1;
+
+  }
+
+  assert(server_name!=NULL);
+
+  if (!port_numeric) port_numeric = 80;
+
+  retval = sprintf(port, "%u", port_numeric);
 
   {
 

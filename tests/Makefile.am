@@ -5,7 +5,7 @@ LIBS =
 
 AM_CFLAGS =
 
-bin_PROGRAMS = zmsg_test test-id_cmd_payload test-fill_from_environment
+bin_PROGRAMS = zmsg_test test-id_cmd_payload test-fill_from_environment test-extract_url
 
 TESTS = $(bin_PROGRAMS)
 
@@ -23,3 +23,9 @@ test_fill_from_environment_LDFLAGS =
 test_fill_from_environment_LDADD = 
 test_fill_from_environment_CFLAGS = -I$(top_srcdir)/src
 test_fill_from_environment_SOURCES = test-fill_from_environment.c $(top_srcdir)/src/ajaxtime_functions.h $(top_srcdir)/src/ajaxtime_functions.c
+
+test_extract_url_LDFLAGS = 
+test_extract_url_LDADD =
+test_extract_url_CFLAGS =  $(AM_CFLAGS) -I$(top_srcdir)/src
+test_extract_url_SOURCES = $(top_srcdir)/src/extract_url.c $(top_srcdir)/src/extract_url.h test-extract_url.c
+

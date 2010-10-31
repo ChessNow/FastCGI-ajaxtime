@@ -15,4 +15,4 @@ fastcgi_ajaxtime_SOURCES = fastcgi-ajaxtime.c zhelpers.h time_pack.h work_items.
 push_submission_LDFLAGS =
 push_submission_LDADD =
 push_submission_CFLAGS =$(AM_CFLAGS)
-push_submission_SOURCES = http_push_support.c http_push_support.h push_submission.c ajaxtime_functions.h ajaxtime_functions.c
+push_submission_SOURCES = http_push_support.c http_push_support.h push_submission.c ajaxtime_functions.h ajaxtime_functions.c extract_url.h extract_url.c
